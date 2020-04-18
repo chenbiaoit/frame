@@ -1,0 +1,22 @@
+spring:
+  profiles:
+    active: dev
+  jpa:
+    properties:
+      hibernate:
+        hbm2ddl:
+          auto: update
+        dialect: org.hibernate.dialect.MySQL5Dialect
+        format_sql: true
+        use-new-id-generator-mappings: false
+    show-sql: true
+    open-in-view: false
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      ##此属性控制HikariCP尝试在池中维护的最小空闲连接数
+      minimumIdle: 2
+      ##此属性控制允许池达到的最大大小，包括空闲和使用中的连接,合理的值最好由您的执行环境确定
+      maximumPoolSize: 5
+      ##此属性控制允许连接在池中保持空闲状态的最长时间。成立条件:minimumIdle < maximumPoolSize默认值：600000（10分钟）,最小为10秒
+      idleTimeout: 600000
