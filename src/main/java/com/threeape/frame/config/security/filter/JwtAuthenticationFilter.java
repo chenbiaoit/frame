@@ -8,7 +8,7 @@ import com.threeape.frame.service.PermissionService;
 import com.threeape.frame.util.Constant;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
-import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.InsufficientAuthenticationException;
@@ -28,7 +28,6 @@ import org.springframework.util.AntPathMatcher;
 import org.springframework.util.Assert;
 import org.springframework.web.filter.OncePerRequestFilter;
 
-import javax.annotation.Resource;
 import javax.servlet.FilterChain;
 import javax.servlet.ServletException;
 import javax.servlet.http.HttpServletRequest;
@@ -62,13 +61,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         this.antPathMatcher = new AntPathMatcher();
     }
 
-    @Value("${app.kerberos.ad-domain}")
-    private String adDomain;
-
-    @Resource
+    @Autowired
     PermissionService permissionService;
-
-    private static final String AD_LOGIN_URL = "/ad/index";
 
     @Override
     public void afterPropertiesSet() {
@@ -155,7 +149,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             List<SysPermission> permissions = permissionService.findUserPerMission(userName);
             String requestUrl = request.getServletPath();
             for(SysPermission permission : permissions){
-                if(antPathMatcher.match(permission.getPermissionPrefixUrl(),requestUrl)){
+                if(antPathMatcher.match(permission.getPrefixUrl(),requestUrl)){
                     return true;
                 }
             }
@@ -183,11 +177,6 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                     return true;
                 }
             }
-        }
-        String requestUrl = request.getServletPath();
-        //对ad登录的链接设置不校验token
-        if(requestUrl.contains(AD_LOGIN_URL)){
-            return true;
         }
         return false;
     }

@@ -52,7 +52,6 @@ public class LoginSuccessHandler implements AuthenticationSuccessHandler {
      * 获取当前登录人拥有的菜单
      * @return
      */
-    @Transactional
     public Map<String,?> getUserPermissions(){
         Authentication authentication= SecurityContextHolder.getContext().getAuthentication();
         //获取当前登录用户
@@ -61,7 +60,6 @@ public class LoginSuccessHandler implements AuthenticationSuccessHandler {
         SysUser user = userRepository.findByLoginName(userDetails.getUsername());
         Date now = new Date();
         user.setLastLoginTime(now);
-        user.setUpdateTime(now);
         userRepository.save(user);
         Map<String,Object> map = new HashMap<>();
         List<SysPermission> permissions = permissionService.findUserPerMission(userDetails.getUsername());

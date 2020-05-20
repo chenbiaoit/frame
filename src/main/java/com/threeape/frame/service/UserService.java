@@ -1,25 +1,41 @@
 package com.threeape.frame.service;
 
+import com.threeape.frame.bean.MailBean;
+import com.threeape.frame.config.email.EmailHelper;
+import com.threeape.frame.entity.system.SysRetrievePassword;
 import com.threeape.frame.entity.system.SysUser;
+import com.threeape.frame.repository.RetrievePasswordRepository;
 import com.threeape.frame.repository.UserRepository;
 import com.threeape.frame.util.*;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
+import org.springframework.security.crypto.factory.PasswordEncoderFactories;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import javax.annotation.Resource;
 import javax.persistence.criteria.Predicate;
 import javax.servlet.http.HttpServletRequest;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
 
 @Service
+@Slf4j
 public class UserService {
 
-    @Resource
+    @Autowired
     private UserRepository userRepository;
+    @Autowired
+    private EmailHelper emailHelper;
+    @Autowired
+    private RetrievePasswordRepository retrievePasswordRepository;
+
+    private PasswordEncoder passwordEncoder =
+            PasswordEncoderFactories.createDelegatingPasswordEncoder();
 
     /**
      * 分页获取用户信息
@@ -40,6 +56,14 @@ public class UserService {
             return criteriaBuilder.and(list.toArray(new Predicate[0]));
         };
         return userRepository.findAll(specification,pageable).getContent();
+    }
+
+    /**
+     * 获取所有用户
+     * @return
+     */
+    public List<SysUser> getAllUser(){
+        return userRepository.findAll();
     }
 
     /**
@@ -67,9 +91,127 @@ public class UserService {
         SysUser user = this.findUser(loginName);
         BusinessUtil.notNull(user,ErrorCodes.SystemManagerEnum.USER_NOT_EXISTS);
         user.setUserStatus(userStatus);
-        user.setUpdateTime(DateUtil.getCurrentTS());
         user.setUpdateUserId(userId);
         userRepository.save(user);
+    }
+
+    /**
+     * 忘记密码-修改密码
+     * @param loginName
+     * @param sid
+     * @param newPwd
+     * @return
+     */
+    @Transactional
+    public boolean modifyPwd(String loginName,String sid,String newPwd){
+
+        SysUser user = userRepository.findByLoginName(loginName);
+        BusinessUtil.notNull(user, ErrorCodes.SystemManagerEnum.USER_NOT_EXISTS);
+        BusinessUtil.notNull(user.getEmail(),ErrorCodes.SystemManagerEnum.USER_EMAIL_INVALID);
+
+        SysRetrievePassword retrievePassword =
+                retrievePasswordRepository.findByUseridAndRandomCode(user.getUserId(), sid);
+
+        BusinessUtil.notNull(retrievePassword,ErrorCodes.SystemManagerEnum.USER_FOGET_EMAIL_URL_INVALID);
+
+        log.info("User {} resets the password",user.getLoginName());
+        user.setLoginPwd(passwordEncoder.encode(newPwd));
+        user.setPwdInvalidTime(DateUtil.addDays(new Date(),365 * 10));
+        user.setUpdateUserId(user.getUserId());
+        userRepository.save(user);
+
+        retrievePassword.setStatus(0);
+        retrievePasswordRepository.save(retrievePassword);
+        return true;
+    }
+
+    /**
+     * 用户-修改密码
+     * @param loginName
+     * @param oldPwd
+     * @param newPwd
+     * @param userId
+     */
+    @Transactional
+    public void modifyPwd(String loginName,String oldPwd,String newPwd,Integer userId){
+        SysUser user = this.findUser(loginName);
+        if(user == null){
+            throw new BusinessException(ErrorCodes.SystemManagerEnum.USER_NOT_EXISTS.getCode(),
+                    ErrorCodes.SystemManagerEnum.USER_NOT_EXISTS.getZhMsg());
+        }
+        if(!passwordEncoder.matches(oldPwd,user.getLoginPwd())){
+            throw new BusinessException(ErrorCodes.SystemManagerEnum.USER_INVALID_PASSWORD.getCode(),
+                    ErrorCodes.SystemManagerEnum.USER_INVALID_PASSWORD.getZhMsg());
+        }
+        user.setLoginPwd(passwordEncoder.encode(newPwd));
+        user.setUpdateUserId(userId);
+        userRepository.save(user);
+    }
+
+    /**
+     * 发送忘记密码邮件
+     * @param loginName
+     */
+    @Transactional
+    public boolean sendForgetEmail(String loginName){
+        SysUser user = userRepository.findByLoginName(loginName);
+        BusinessUtil.notNull(user, ErrorCodes.SystemManagerEnum.USER_NOT_EXISTS);
+
+        MailBean mailBean = new MailBean();
+        mailBean.setTemplateName(EmailHelper.MAIL_TEMPLATE.FORGET_PWD.getTemplateName());
+        mailBean.setSubject("忘记密码邮件");
+        mailBean.setTos(user.getEmail());
+        String randomCode = UUID.randomUUID().toString();
+        Map<String,Object> map = new HashMap<>();
+        map.put("url",String.format("%s/pwd?sid=%s&loginName=%s","",randomCode,loginName));
+        map.put("loginName",loginName);
+        mailBean.setParams(map);
+
+        emailHelper.sendHtmlMail(mailBean);
+
+        //保存
+        Date now = new Date();
+        SysRetrievePassword retrievePassword = new SysRetrievePassword();
+        retrievePassword.setUserid(user.getUserId());
+        retrievePassword.setRandomCode(randomCode);
+        retrievePassword.setInvalidTime(DateUtil.addMinutes(now,30));
+        retrievePassword.setStatus(1);
+
+        retrievePasswordRepository.save(retrievePassword);
+        return true;
+    }
+
+    /**
+     * 重置密码
+     * @param loginName
+     * @param currentUser
+     */
+    @Transactional
+    public void resetUserPwd(String loginName,SysUser currentUser){
+        SysUser user = this.findUser(loginName);
+        if(user == null){
+            throw new BusinessException(ErrorCodes.SystemManagerEnum.USER_NOT_EXISTS.getCode(),
+                    ErrorCodes.SystemManagerEnum.USER_NOT_EXISTS.getZhMsg());
+        }
+        user.setUpdateUserId(currentUser.getUserId());
+        String newPasswod = PasswordHelper.generateRandomPassword();
+        user.setLoginPwd(passwordEncoder.encode(newPasswod));
+        userRepository.save(user);
+
+        //发送邮件
+        this.sendEmail(user, newPasswod, "密码重置邮件", EmailHelper.MAIL_TEMPLATE.RESET_PWD);
+    }
+
+    private void sendEmail(SysUser user, String password, String subject, EmailHelper.MAIL_TEMPLATE userCreate) {
+        MailBean mailBean = new MailBean();
+        mailBean.setTos(user.getEmail());
+        mailBean.setSubject(subject);
+        Map<String, Object> map = new HashMap<>();
+        map.put("loginName", user.getLoginName());
+        map.put("password", password);
+        mailBean.setParams(map);
+        mailBean.setTemplateName(userCreate.getTemplateName());
+        emailHelper.sendHtmlMail(mailBean);
     }
 
     /**

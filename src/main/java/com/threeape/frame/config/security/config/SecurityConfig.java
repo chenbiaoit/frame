@@ -8,10 +8,9 @@ import com.threeape.frame.config.security.handler.LoginSuccessHandler;
 import com.threeape.frame.config.security.handler.TokenClearLogoutHandler;
 import com.threeape.frame.service.UserService;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.core.io.FileSystemResource;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.AuthenticationProvider;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
@@ -21,43 +20,22 @@ import org.springframework.security.config.annotation.web.builders.WebSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configuration.WebSecurityConfigurerAdapter;
 import org.springframework.security.core.userdetails.UserDetailsService;
-import org.springframework.security.kerberos.authentication.KerberosAuthenticationProvider;
-import org.springframework.security.kerberos.authentication.KerberosServiceAuthenticationProvider;
-import org.springframework.security.kerberos.authentication.sun.GlobalSunJaasKerberosConfig;
-import org.springframework.security.kerberos.authentication.sun.SunJaasKerberosClient;
-import org.springframework.security.kerberos.authentication.sun.SunJaasKerberosTicketValidator;
-import org.springframework.security.kerberos.web.authentication.SpnegoAuthenticationProcessingFilter;
-import org.springframework.security.kerberos.web.authentication.SpnegoEntryPoint;
 import org.springframework.security.web.authentication.logout.HttpStatusReturningLogoutSuccessHandler;
-import org.springframework.security.web.authentication.www.BasicAuthenticationFilter;
 import org.springframework.web.filter.CorsFilter;
-
-import javax.annotation.Resource;
 
 @EnableWebSecurity
 @Configuration
 @Slf4j
 public class SecurityConfig extends WebSecurityConfigurerAdapter {
-
-    @Value("${app.kerberos.service-principal}")
-    private String servicePrincipal;
-
-    @Value("${app.kerberos.keytab-location}")
-    private String keytabLocation;
-
-    @Value("${app.kerberos.krb5-config}")
-    private String krb5Config;
-
-    @Resource
+    @Autowired
     private UserService userService;
-
-    @Resource
+    @Autowired
     private LoginSuccessHandler loginSuccessHandler;
-    @Resource
+    @Autowired
     private JwtUserService jwtUserService;
-    @Resource
+    @Autowired
     private JwtRefreshSuccessHandler jwtRefreshSuccessHandler;
-    @Resource
+    @Autowired
     private TokenClearLogoutHandler tokenClearLogoutHandler;
 
     @Bean
@@ -81,7 +59,6 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
     protected void configure(HttpSecurity httpSecurity) throws Exception {
         httpSecurity
                 .exceptionHandling()
-                .authenticationEntryPoint(spnegoEntryPoint())
                 .and()
                 .authorizeRequests()
                 .antMatchers(permissiveUrl).permitAll()
@@ -105,10 +82,7 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
                 //logout时清除token
                 .addLogoutHandler(tokenClearLogoutHandler)
                 //logout成功后返回200
-                .logoutSuccessHandler(new HttpStatusReturningLogoutSuccessHandler())
-                .and()
-                //添加kerberos spnego认证支持
-                .addFilterBefore(spnegoAuthenticationProcessingFilter(authenticationManagerBean()), BasicAuthenticationFilter.class);
+                .logoutSuccessHandler(new HttpStatusReturningLogoutSuccessHandler());
     }
 
     @Override
@@ -121,8 +95,6 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
     protected void configure(AuthenticationManagerBuilder auth) {
         auth
                 .authenticationProvider(daoAuthenticationProvider())
-                .authenticationProvider(kerberosAuthenticationProvider())
-                .authenticationProvider(kerberosServiceAuthenticationProvider())
                 .authenticationProvider(jwtAuthenticationProvider());
     }
 
@@ -131,73 +103,15 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
         return jwtUserService;
     }
 
-    @Bean
-    public KerberosAuthenticationProvider kerberosAuthenticationProvider() {
-        KerberosAuthenticationProvider provider = new KerberosAuthenticationProvider();
-        SunJaasKerberosClient client = new SunJaasKerberosClient();
-        client.setDebug(true);
-        provider.setKerberosClient(client);
-        provider.setUserDetailsService(userDetailsService());
-        return provider;
-    }
-
-    @Bean
-    public KerberosServiceAuthenticationProvider kerberosServiceAuthenticationProvider() {
-        KerberosServiceAuthenticationProvider provider = new KerberosServiceAuthenticationProvider();
-        provider.setTicketValidator(sunJaasKerberosTicketValidator());
-        provider.setUserDetailsService(userDetailsService());
-        return provider;
-    }
-
-    @Bean
-    public SunJaasKerberosTicketValidator sunJaasKerberosTicketValidator() {
-        final GlobalSunJaasKerberosConfig globalSunJaasKerberosConfig = new GlobalSunJaasKerberosConfig();
-        globalSunJaasKerberosConfig.setKrbConfLocation(krb5Config);
-        globalSunJaasKerberosConfig.setDebug(true);
-        try {
-            globalSunJaasKerberosConfig.afterPropertiesSet();
-        } catch (Exception e) {
-            log.error("设置krb5.ini({})文件出现异常",krb5Config);
-        }
-        SunJaasKerberosTicketValidator ticketValidator = new SunJaasKerberosTicketValidator();
-        ticketValidator.setServicePrincipal(servicePrincipal);
-        ticketValidator.setKeyTabLocation(new FileSystemResource(keytabLocation));
-        ticketValidator.setDebug(true);
-        return ticketValidator;
-    }
-
-    @Bean
-    public SpnegoAuthenticationProcessingFilter spnegoAuthenticationProcessingFilter(
-            AuthenticationManager authenticationManager) {
-        SpnegoAuthenticationProcessingFilter filter = new SpnegoAuthenticationProcessingFilter();
-        filter.setAuthenticationManager(authenticationManager);
-        return filter;
-    }
-
-    @Bean
-    public SpnegoEntryPoint spnegoEntryPoint() {
-        return new SpnegoEntryPoint("/ad/forward");
-    }
-
     private static final String[] permissiveUrl = new String[]{
             "/",
             "/sys/**",
             "/user/login",
             "/user/forgetPwd/**",
             "/user/modifyPwd",
-            "/handover/deliver/data/**",
             "/file/**",
             "/logout",
-            "/announcement/file/**",
             "/login",
-            "/loginCheck",
-            "/scheduleJob/**",
-            "/ajax/scheduleJob/**",
-            "/webservice/**",
             "/verifyCode",
-            "/announcement/list",
-            "/archive/list",
-            "/user/dealer/**",
-            "/user/ships/**"
     };
 }

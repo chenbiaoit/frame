@@ -1,5 +1,8 @@
 package com.threeape.frame.util;
 
+import java.util.ArrayList;
+import java.util.List;
+
 /**
  * @Desc:
  * @Author: Bill
@@ -85,6 +88,30 @@ public class Enums {
 
         public int getCode() {
             return code;
+        }
+    }
+
+    /**
+     * 资源类型: 菜单、按钮、接口api
+     */
+    public enum PERMISSION_TYPE_ENUM {
+        MENU(1),BUTTON(2),API(3);
+
+        private final int type;
+
+        PERMISSION_TYPE_ENUM(int type){
+            this.type = type;
+        }
+        public int getType() {
+            return type;
+        }
+
+        public static List<Integer> getResourceTypes(){
+            List<Integer> types = new ArrayList<>();
+            for(PERMISSION_TYPE_ENUM type : PERMISSION_TYPE_ENUM.values()){
+                types.add(type.getType());
+            }
+            return types;
         }
     }
 }

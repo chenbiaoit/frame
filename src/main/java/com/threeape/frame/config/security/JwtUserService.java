@@ -8,7 +8,9 @@ import com.threeape.frame.repository.RoleRepository;
 import com.threeape.frame.repository.UserRepository;
 import com.threeape.frame.util.DateUtil;
 import com.threeape.frame.util.Enums;
+import com.threeape.frame.util.PasswordHelper;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.authentication.LockedException;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -35,62 +37,18 @@ import java.util.Random;
 @Slf4j
 public class JwtUserService implements UserDetailsService {
 
-    @Resource
+    @Autowired
     private UserRepository userRepository;
-    @Resource
-    private RoleRepository roleRepository;
-
-    @Value("${app.kerberos.ad-domain}")
-    private String adDomain;
-    private PasswordEncoder passwordEncoder =
-            PasswordEncoderFactories.createDelegatingPasswordEncoder();
 
     private final static String secret = "ioiuffkII#022";
 
     @Override
     public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException, LockedException {
-        boolean isInternalEmployee = username.contains(adDomain);
-        if(isInternalEmployee){
-            String loginName = username.substring(0,username.indexOf(adDomain)-1);
-            username = loginName;
-        }
         SysUser user = userRepository.findByLoginName(username);
         if (Objects.isNull(user)) {
-            if(!isInternalEmployee){
-                String errorMsg = String.format("No user found with username '%s'", username);
-                log.error(errorMsg);
-                throw new UsernameNotFoundException(errorMsg);
-            }
-            log.info("Initialize the domain user {}",username);
-            //初始化用户
-            String loginName = this.getLoginName(username);
-            user = new SysUser();
-            user.setLoginName(loginName);
-            user.setCustomerName(username);
-            //域账号使用随机密码
-            user.setLoginPwd(passwordEncoder.encode(generateRandomPassword()));
-            user.setActive((short)1);
-            user.setUserStatus(1);
-            //域账号密码过期跟随ad域,这里设置为20年过期
-            user.setPwdInvalidTime(DateUtil.addDays(new Date(),365 * 20));
-            user.setRegTime(new Date());
-            user.setUserType(Enums.USER_TYPE.internal.toString());
-            user.setCreateUserId(1);
-            user.setCreateTime(DateUtil.getCurrentTS());
-
-            SysRole basicRole = roleRepository.findByRoleCodeAndActive("BASIC_ROLE",1);
-            if(Objects.isNull(basicRole)){
-                SysRole sysRole = new SysRole();
-                sysRole.setRoleName("基本角色");
-                sysRole.setActive((short)1);
-                sysRole.setRoleCode("BASIC_ROLE");
-                sysRole.setCreateTime(DateUtil.getCurrentTS());
-                basicRole = roleRepository.save(sysRole);
-            }
-            user.setSysrole(basicRole);
-            userRepository.save(user);
-            return new JwtUser(user,user.getLoginName(),user.getLoginPwd(),
-                    Collections.singleton(new SimpleGrantedAuthority("BASIC_ROLE")));
+            String errorMsg = String.format("No user found with username '%s'", username);
+            log.error(errorMsg);
+            throw new UsernameNotFoundException(errorMsg);
         }
         if(user.getUserStatus().equals(0)){
             throw new LockedException("locked");
@@ -98,7 +56,7 @@ public class JwtUserService implements UserDetailsService {
         if(user.getPwdInvalidTime().before(new Date())){
             throw new LockedException("password expiration");
         }
-        SysRole sysrole = user.getSysrole();
+        SysRole sysrole = user.getSysRole();
         if(Objects.isNull(sysrole)){
             throw new LockedException("Role-free user");
         }
@@ -160,29 +118,5 @@ public class JwtUserService implements UserDetailsService {
         }
         return sb.toString();
 
-    }
-
-    /**
-     * 重置密码随机生成10位密码数
-     * @return
-     */
-    public static String generateRandomPassword() {
-        int length = 10;
-        char[] ss = new char[10];
-        int[] flag = { 0, 0, 0 }; // A-Z, a-z, 0-9
-        int i = 0;
-        while (flag[0] == 0 || flag[1] == 0 || flag[2] == 0 || i < length) {
-            i = i % length;
-            int f = (int) (Math.random() * 3 % 3);
-            if (f == 0)
-                ss[i] = (char) ('A' + Math.random() * 26);
-            else if (f == 1)
-                ss[i] = (char) ('a' + Math.random() * 26);
-            else
-                ss[i] = (char) ('0' + Math.random() * 10);
-            flag[f] = 1;
-            i++;
-        }
-        return new String(ss) + "$";
     }
 }

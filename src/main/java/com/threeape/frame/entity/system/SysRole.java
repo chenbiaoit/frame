@@ -1,7 +1,11 @@
 package com.threeape.frame.entity.system;
 
 import com.alibaba.fastjson.annotation.JSONField;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import lombok.Data;
+import org.hibernate.annotations.Proxy;
+import org.springframework.data.annotation.CreatedDate;
+import org.springframework.data.annotation.LastModifiedDate;
 
 import javax.persistence.*;
 import java.util.Date;
@@ -16,6 +20,7 @@ public class SysRole {
     private Integer roleId;
 
     @JSONField(format="yyyy-MM-dd HH:mm:ss")
+    @CreatedDate
     private Date createTime;
 
     @JSONField(serialize=false)
@@ -28,6 +33,7 @@ public class SysRole {
     private Integer roleType;
 
     @JSONField(serialize=false)
+    @LastModifiedDate
     private Date updateTime;
 
     @JSONField(serialize=false)
@@ -37,13 +43,29 @@ public class SysRole {
     private Short active;
 
     //角色相关用户
-    @OneToMany(cascade=CascadeType.REFRESH,mappedBy="sysrole",fetch = FetchType.LAZY)
+    @OneToMany(mappedBy= "sysRole",fetch = FetchType.LAZY)
+    @JSONField(serialize=false)
     private List<SysUser> users;
 
     //角色相关权限
-    @ManyToMany(cascade=CascadeType.REFRESH)
+    @ManyToMany(fetch = FetchType.LAZY)
     @JoinTable(name="t_sys_role_permission",
-            inverseJoinColumns=@JoinColumn(name="permission_id"),
-            joinColumns=@JoinColumn(name="role_id"))
+            inverseJoinColumns=@JoinColumn(name="permission_id"),joinColumns=@JoinColumn(name="role_id"))
+    @JSONField(serialize=false)
     private List<SysPermission> sysPermissions;
+
+    @Override
+    public String toString() {
+        return "SysRole{" +
+                "roleId=" + roleId +
+                ", createTime=" + createTime +
+                ", createUserId=" + createUserId +
+                ", roleCode='" + roleCode + '\'' +
+                ", roleName='" + roleName + '\'' +
+                ", roleType=" + roleType +
+                ", updateTime=" + updateTime +
+                ", updateUserId=" + updateUserId +
+                ", active=" + active +
+                '}';
+    }
 }

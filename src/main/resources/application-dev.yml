@@ -22,11 +22,6 @@ spring:
     from: ${spring.mail.username} #与上面的username保持一致
 ---
 app:
-  kerberos:
-    service-principal: HTTP/tomcat.threeape.cn@THREEAPE.CN
-    keytab-location: /Users/Bill/Desktop/tomcat.keytab
-    krb5-config: /Users/Bill/Desktop/krb5.ini
-    ad-domain: THREEAPE.CN
   file:
     path:
       root:

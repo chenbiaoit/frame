@@ -4,7 +4,7 @@ import com.alibaba.fastjson.JSON;
 import com.threeape.frame.config.security.JwtUser;
 import com.threeape.frame.entity.system.SysOperationLog;
 import com.threeape.frame.entity.system.SysUser;
-import com.threeape.frame.repository.OperationLogRepositiry;
+import com.threeape.frame.repository.OperationLogRepository;
 import com.threeape.frame.util.BusinessException;
 import com.threeape.frame.util.ErrorCodes;
 import com.threeape.frame.util.ExceptionUtils;
@@ -42,7 +42,7 @@ import java.util.stream.Stream;
 public class OperationAspect{
 
     @Resource
-    private OperationLogRepositiry operationLogRepositiry;
+    private OperationLogRepository operationLogRepository;
 
 
     @Around("@annotation(operationLog)")
@@ -199,6 +199,6 @@ public class OperationAspect{
      * @param operationLog
      */
     private void saveLog(SysOperationLog operationLog){
-        operationLogRepositiry.save(operationLog);
+        operationLogRepository.save(operationLog);
     }
 }

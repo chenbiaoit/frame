@@ -36,7 +36,9 @@ public class EmailHelper {
      * 模板枚举定义,方便统一更改
      */
     public enum MAIL_TEMPLATE {
-        USER_CREATE("mail/createSubAgent");
+        USER_CREATE("mail/createSubAgent"),
+        RESET_PWD("mail/resetPwd"),
+        FORGET_PWD("mail/forgetPwd");
 
         private String templateName;
 
