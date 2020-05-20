@@ -1,6 +1,5 @@
 package com.threeape.frame.controller;
 
-import com.github.pagehelper.PageInfo;
 import com.threeape.frame.entity.system.SysUser;
 import com.threeape.frame.service.UserService;
 import com.threeape.frame.util.BaseResponse;
@@ -10,6 +9,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -22,6 +23,10 @@ public class UserController extends BaseController{
     @Autowired
     private UserService userService;
 
+    @GetMapping("/verifyCode")
+    public void getCode(HttpServletRequest req, HttpServletResponse resp){
+        userService.getVerifyCode(req, resp);
+    }
     /**
      * 分页查询
      * @return

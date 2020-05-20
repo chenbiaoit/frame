@@ -112,6 +112,6 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
             "/file/**",
             "/logout",
             "/login",
-            "/verifyCode",
+            "/user/verifyCode",
     };
 }
